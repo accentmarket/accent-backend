@@ -15,8 +15,8 @@ async def get_user(telegram_id: int):
         logger.info(f"Getting user with telegram_id: {telegram_id}")
         
         # Инициализация Supabase
-        supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+        supabase_url = os.environ.get("https://kftukrpnzvdvsimsywbl.supabase.co")
+        supabase_key = os.environ.get("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmdHVrcnBuenZkdnNpbXN5d2JsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjAzNjI3NiwiZXhwIjoyMDc3NjEyMjc2fQ.YwsZjaZ50aV_nKnJTsZDG_5lo_uXbIIfBVvn1LMRWyU")
         
         if not supabase_url or not supabase_key:
             logger.error("Supabase credentials not set")
