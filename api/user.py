@@ -4,9 +4,6 @@ from supabase import create_client
 import logging
 
 router = APIRouter()
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 @router.get("/user")
