@@ -1,102 +1,51 @@
-# api/user.py
+from fastapi import APIRouter, HTTPException
 import os
-import requests
-from http import HTTPStatus
+from supabase import create_client
+import logging
 
-# Получаем переменные окружения
-SUPABASE_URL = "https://kftukrpznzvdvsimsywbl.supabase.co"
-SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
+router = APIRouter()
 
-def validate_telegram_data(init_data: str) -> dict:
-    """Валидация данных от Telegram WebApp"""
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+@router.get("/user")
+async def get_user(telegram_id: int):
     try:
-        import urllib.parse
-        import hmac
-        import hashlib
-        import time
+        logger.info(f"Getting user with telegram_id: {telegram_id}")
         
-        params = {}
-        for part in init_data.split("&"):
-            if "=" in part:
-                key, value = part.split("=", 1)
-                params[key] = urllib.parse.unquote(value)
+        # Инициализация Supabase
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
         
-        # Проверка срока действия (24 часа)
-        if "auth_date" in params:
-            if time.time() - int(params["auth_date"]) > 86400:
-                raise Exception("Data expired")
+        if not supabase_url or not supabase_key:
+            logger.error("Supabase credentials not set")
+            raise HTTPException(status_code=500, detail="Server configuration error")
         
-        # Проверка хеша
-        secret = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
-        check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()) if k != "hash")
-        hash_computed = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+        supabase = create_client(supabase_url, supabase_key)
         
-        if hash_computed != params.get("hash"):
-            raise Exception("Invalid hash")
+        # Проверяем существование пользователя
+        response = supabase.table("users").select("*").eq("telegram_id", telegram_id).execute()
         
-        return params
-    except Exception as e:
-        raise Exception(f"Validation failed: {str(e)}")
-
-def handler(request, context):
-    try:
-        init_data = request.args.get('initData')
-        if not init_data:
-            return {'error': 'initData required'}, HTTPStatus.BAD_REQUEST
-        
-        # Валидация данных
-        try:
-            user_data = validate_telegram_data(init_data)
-            user = eval(user_data["user"])  # Декодируем данные пользователя
-            telegram_id = int(user["id"])
-        except Exception as e:
-            return {'error': str(e)}, HTTPStatus.UNAUTHORIZED
-        
-        # Получаем или создаем пользователя в Supabase
-        headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        # Проверяем, существует ли пользователь
-        response = requests.get(
-            f"{SUPABASE_URL}/rest/v1/users?telegram_id=eq.{telegram_id}",
-            headers=headers
-        )
-        
-        if response.status_code != 200:
-            return {'error': 'Database error'}, HTTPStatus.INTERNAL_SERVER_ERROR
-        
-        users = response.json()
-        
-        if not users:
+        if response.data:
+            logger.info(f"User found: {response.data[0]}")
+            return response.data[0]
+        else:
             # Создаем нового пользователя
+            logger.info(f"Creating new user with telegram_id: {telegram_id}")
             new_user = {
                 "telegram_id": telegram_id,
-                "username": user.get("username", ""),
-                "first_name": user.get("first_name", ""),
                 "balance": 0.0
             }
+            result = supabase.table("users").insert(new_user).execute()
             
-            create_response = requests.post(
-                f"{SUPABASE_URL}/rest/v1/users",
-                headers=headers,
-                json=new_user
-            )
-            
-            if create_response.status_code not in [200, 201]:
-                return {'error': 'Failed to create user'}, HTTPStatus.INTERNAL_SERVER_ERROR
-            
-            users = [new_user]
-        
-        # Возвращаем данные пользователя
-        return {
-            'telegram_id': users[0]['telegram_id'],
-            'username': users[0]['username'],
-            'balance': float(users[0]['balance'])
-        }, HTTPStatus.OK
-    
+            if result.data:
+                logger.info(f"New user created: {result.data[0]}")
+                return result.data[0]
+            else:
+                logger.error("Failed to create user")
+                raise HTTPException(status_code=500, detail="Failed to create user")
+                
     except Exception as e:
-        return {'error': str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR
+        logger.error(f"Error in get_user: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

@@ -1,105 +1,52 @@
-# api/channels.py
+from fastapi import APIRouter, HTTPException
 import os
-import requests
-from http import HTTPStatus
+from supabase import create_client
+import logging
 
-# Получаем переменные окружения
-SUPABASE_URL = "https://kftukrpznzvdvsimsywbl.supabase.co"
-SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_KEY')
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
+router = APIRouter()
+logger = logging.getLogger(__name__)
 
-def validate_telegram_data(init_data: str) -> dict:
-    """Валидация данных от Telegram WebApp"""
+@router.post("/channels")
+async def add_channel(telegram_id: int, channel_username: str):
     try:
-        import urllib.parse
-        import hmac
-        import hashlib
-        import time
+        logger.info(f"Adding channel {channel_username} for user {telegram_id}")
         
-        params = {}
-        for part in init_data.split("&"):
-            if "=" in part:
-                key, value = part.split("=", 1)
-                params[key] = urllib.parse.unquote(value)
+        # Инициализация Supabase
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
         
-        # Проверка срока действия (24 часа)
-        if "auth_date" in params:
-            if time.time() - int(params["auth_date"]) > 86400:
-                raise Exception("Data expired")
+        if not supabase_url or not supabase_key:
+            raise HTTPException(status_code=500, detail="Server configuration error")
         
-        # Проверка хеша
-        secret = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
-        check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()) if k != "hash")
-        hash_computed = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+        supabase = create_client(supabase_url, supabase_key)
         
-        if hash_computed != params.get("hash"):
-            raise Exception("Invalid hash")
-        
-        return params
-    except Exception as e:
-        raise Exception(f"Validation failed: {str(e)}")
-
-def handler(request, context):
-    try:
-        # Получаем данные из тела запроса
-        body = request.json
-        init_data = body.get('initData')
-        channel_username = body.get('channel_username')
-        
-        if not init_data or not channel_username:
-            return {'error': 'initData and channel_username are required'}, HTTPStatus.BAD_REQUEST
-        
-        # Валидация данных
-        try:
-            user_data = validate_telegram_data(init_data)
-            user = eval(user_data["user"])
-            telegram_id = int(user["id"])
-        except Exception as e:
-            return {'error': str(e)}, HTTPStatus.UNAUTHORIZED
-        
-        # Проверяем формат юзернейма
+        # Проверяем валидность юзернейма
         if not channel_username.startswith('@'):
-            return {'error': 'Channel username must start with @'}, HTTPStatus.BAD_REQUEST
+            raise HTTPException(status_code=400, detail="Юзернейм канала должен начинаться с @")
         
         # Проверяем, не добавлен ли уже этот канал
-        headers = {
-            "apikey": SUPABASE_KEY,
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "application/json"
-        }
+        existing = supabase.table("channels").select("*").eq("channel_username", channel_username).execute()
+        if existing.data:
+            raise HTTPException(status_code=400, detail="Этот канал уже добавлен")
         
-        check_response = requests.get(
-            f"{SUPABASE_URL}/rest/v1/channels?telegram_id=eq.{telegram_id}&channel_username=eq.{channel_username}",
-            headers=headers
-        )
-        
-        if check_response.status_code != 200:
-            return {'error': 'Database error'}, HTTPStatus.INTERNAL_SERVER_ERROR
-        
-        existing_channels = check_response.json()
-        if existing_channels:
-            return {'error': 'This channel is already added'}, HTTPStatus.BAD_REQUEST
-        
-        # Добавляем канал в базу
+        # Добавляем канал
         new_channel = {
             "telegram_id": telegram_id,
             "channel_username": channel_username,
             "status": "active"
         }
+        result = supabase.table("channels").insert(new_channel).execute()
         
-        create_response = requests.post(
-            f"{SUPABASE_URL}/rest/v1/channels",
-            headers=headers,
-            json=new_channel
-        )
+        if result.data:
+            return {
+                "message": "Канал успешно добавлен",
+                "channel": channel_username
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Не удалось добавить канал")
         
-        if create_response.status_code not in [200, 201]:
-            return {'error': 'Failed to add channel'}, HTTPStatus.INTERNAL_SERVER_ERROR
-        
-        return {
-            'message': 'Channel successfully added',
-            'channel': channel_username
-        }, HTTPStatus.OK
-    
+    except HTTPException:
+        raise
     except Exception as e:
-        return {'error': str(e)}, HTTPStatus.INTERNAL_SERVER_ERROR
+        logger.error(f"Error in add_channel: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ошибка при добавлении канала: {str(e)}")
