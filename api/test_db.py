@@ -4,7 +4,6 @@ from supabase import create_client
 import logging
 
 router = APIRouter()
-# Исправлено: __name__
 logger = logging.getLogger(__name__)
 
 @router.get("/test_db")
@@ -12,9 +11,8 @@ async def test_db():
     try:
         logger.info("Testing database connection")
         
-        # Исправлено: убраны пробелы в названиях переменных
         supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_KEY")  # Лучше использовать SUPABASE_KEY
+        supabase_key = os.environ.get("SUPABASE_KEY")
         
         if not supabase_url or not supabase_key:
             return {
@@ -26,12 +24,11 @@ async def test_db():
         
         supabase = create_client(supabase_url, supabase_key)
         
-        # Исправлено: убраны пробелы в названии таблицы
         response = supabase.table('users').select('*').limit(2).execute()
         
         tables = ['users', 'channels', 'transactions']
         table_status = {}
-         
+        
         for table in tables:
             try:
                 test_response = supabase.table(table).select('id').limit(1).execute()
