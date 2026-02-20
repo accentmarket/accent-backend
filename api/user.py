@@ -11,9 +11,9 @@ async def get_user(telegram_id: int):
     try:
         logger.info(f"Getting user with telegram_id: {telegram_id}")
         
-        # Инициализация Supabase
-        supabase_url = os.environ.get("https://kftukrpnzvdvsimsywbl.supabase.co")
-        supabase_key = os.environ.get("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtmdHVrcnBuenZkdnNpbXN5d2JsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjAzNjI3NiwiZXhwIjoyMDc3NjEyMjc2fQ.YwsZjaZ50aV_nKnJTsZDG_5lo_uXbIIfBVvn1LMRWyU")
+        # Исправлено: получаем значения из переменных окружения Vercel
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_KEY")
         
         if not supabase_url or not supabase_key:
             logger.error("Supabase credentials not set")
@@ -21,14 +21,13 @@ async def get_user(telegram_id: int):
         
         supabase = create_client(supabase_url, supabase_key)
         
-        # Проверяем существование пользователя
+        # Исправлено: убраны пробелы в названиях таблицы и колонок
         response = supabase.table("users").select("*").eq("telegram_id", telegram_id).execute()
         
         if response.data:
             logger.info(f"User found: {response.data[0]}")
             return response.data[0]
         else:
-            # Создаем нового пользователя
             logger.info(f"Creating new user with telegram_id: {telegram_id}")
             new_user = {
                 "telegram_id": telegram_id,
