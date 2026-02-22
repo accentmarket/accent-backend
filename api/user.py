@@ -13,7 +13,7 @@ async def get_user(telegram_id: int):
         
         # Исправлено: получаем значения из переменных окружения Vercel
         supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_KEY")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
         
         if not supabase_url or not supabase_key:
             logger.error("Supabase credentials not set")

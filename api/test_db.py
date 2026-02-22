@@ -12,7 +12,7 @@ async def test_db():
         logger.info("Testing database connection")
         
         supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_KEY")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
         
         if not supabase_url or not supabase_key:
             return {
