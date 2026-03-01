@@ -4,10 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from .users import router as users_router
 from .orders import router as orders_router
 
-from .payments import router as payments_router
+from payments import router as payments_router
 app.include_router(payments_router, prefix="/api")
 
-app = FastAPI(title="Accent Market API")
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
