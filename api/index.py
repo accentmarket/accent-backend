@@ -25,6 +25,6 @@ app.include_router(payments_router, prefix="/api")
 def root():
     return {"status": "backend_alive"}
 
-@app.get("/")
-async def root():
-    return {"status": "ok"}
+#@app.get("/")
+#async def root():
+#    return {"status": "ok"}
